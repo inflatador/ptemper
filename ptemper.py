@@ -145,30 +145,34 @@ def check_and_make_container(method, cf_endpoint, container, cf_object, auth_tok
     object_url = container_url + "/" + cf_object
     method = method.upper()
     #Sanity check for method
-    if method !="GET" or method !="POST":
-        print ("Error! Invalid method specified. Valid methods: GET, POST.")
-        sys.exit()
-    cf_container = requests.head(url=container_url, headers=headers)
+    validated_unit = re.match(r"GET|PUT", method)
+    
+    if method == "GET" or method == "PUT":
 
-    if cf_container.status_code == 404 and method == "PUT":
-        print ("Container %s does not already exist. Creating..." % container)
-        cf_container_put = requests.put(url=container_url, headers=headers)
-        # Create a 0-byte object for the file. This will be overwritten by the later PUT
-        # command.
-        cf_object_put = requests.put(url=object_url, headers=headers)
+        cf_container = requests.head(url=container_url, headers=headers)
 
-    elif cf_container.status_code != 404 and method == "PUT":
-        print ("Error! container %s already exists, ptemper won't create a PUT URL." % container)
-        sys.exit()
+        if cf_container.status_code == 404 and method == "PUT":
+            print ("Container %s does not already exist. Creating..." % container)
+            cf_container_put = requests.put(url=container_url, headers=headers)
+            # Create a 0-byte object for the file. This will be overwritten by the later PUT
+            # command.
+            cf_object_put = requests.put(url=object_url, headers=headers)
+
+        elif cf_container.status_code != 404 and method == "PUT":
+            print ("Error! container %s already exists, ptemper won't create a PUT URL." % container)
+            sys.exit()
         
-    elif cf_container.status_code == 404 and method == "GET":
-        print ("Error, requested a GET TempURL but object does not already exist")
+        elif cf_container.status_code == 404 and method == "GET":
+            print ("Error, requested a GET TempURL but object does not already exist")
+            sys.exit()
+
+        elif cf_container.status_code == 200 and method == "GET":
+            print ("Found existing object URL for GET TempURL, creating...")
+    
+
+    else: 
+        print ("Error! Invalid method specified. Valid methods: GET, PUT.")
         sys.exit()
-
-    elif cf_container.status_code == 200 and method == "GET":
-        print ("Found existing object URL for GET TempURL, creating...")
-        
-
     return object_url
 
 def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object, auth_token):
