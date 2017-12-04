@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# ptemper, a script that creates Rackspace Cloud Files TempURLs
+# version: 0.0.4a
 # Copyright 2017 Brian King
 # License: Apache
 
@@ -104,26 +106,6 @@ def get_auth_token(username,password):
             print("Authentication was successful!")
     elif r.status_code == 200:
         print("Authentication was successful!")
-    
-#     elif r.status_code == 400:
-#         print("Bad Request. Missing required parameters. This error also occurs if you include both the tenant name and ID in the request.")
-#         sys.exit()
-#     elif r.status_code == 401:
-#         print("Unauthorized. This error message might indicate any of the following conditions:")
-#         print("    -You are not authorized to complete this operation.")
-#         print("    -Additional authentication credentials required. Submit a second authentication request with multi-factor authentication credentials")
-#         sys.exit()
-#     elif r.status_code == 403:
-#         print("User disabled Forbidden")
-#     elif r.status_code == 404:
-#         print("Item not found. The requested resource was not found. The subject token in X-Subject-Token has expired or is no longer available. Use the POST token request to get a new token.")
-#         sys.exit()
-#     elif r.status_code == 500:
-#         print("Service Fault. Service is not available")
-#         sys.exit()
-#     else:
-#         print("Unknown Authentication Error")
-#         sys.exit()
 
     #loads json reponse into data as a dictionary.
     data = r.json()
@@ -142,7 +124,6 @@ def find_endpoint_and_user(auth_token, region):
     the_service_catalog = raw_service_catalog.json()
     endpoints = the_service_catalog["endpoints"]
     for service in range(len(endpoints)):
-#        print endpoints[service]["name"]
         if "cloudFiles" == endpoints[service]["name"] and endpoints[service]["region"] == region:
             cf_endpoint = endpoints[service]["publicURL"]
             cf_username = endpoints[service]["tenantId"]
@@ -156,31 +137,44 @@ def get_temp_url_key(cf_endpoint, cf_username, auth_token):
     temp_url_key = temp_url_check.headers["X-Account-Meta-Temp-Url-Key"]
     return temp_url_key
 
-def check_and_make_container(cf_endpoint, container, cf_object, auth_token):
+def check_and_make_container(method, cf_endpoint, container, cf_object, auth_token):
     headers = {'content-type': 'application/json', 'Accept': 'application/json',
                'X-Auth-Token': auth_token}
-
+               
     container_url = cf_endpoint + "/" + container
     object_url = container_url + "/" + cf_object
+    method = method.upper()
+    #Sanity check for method
+    if method !="GET" or method !="POST":
+        print ("Error! Invalid method specified. Valid methods: GET, POST.")
+        sys.exit()
+    cf_container = requests.head(url=container_url, headers=headers)
 
-    cf_container = requests.get(url=container_url, headers=headers)
-
-    if cf_container.status_code == 404:
+    if cf_container.status_code == 404 and method == "PUT":
         print ("Container %s does not already exist. Creating..." % container)
         cf_container_put = requests.put(url=container_url, headers=headers)
         # Create a 0-byte object for the file. This will be overwritten by the later PUT
         # command.
         cf_object_put = requests.put(url=object_url, headers=headers)
 
-    else:
-        print ("Error! container %s already exists, please pick a new container name and try again" % container)
+    elif cf_container.status_code != 404 and method == "PUT":
+        print ("Error! container %s already exists, ptemper won't create a PUT URL." % container)
         sys.exit()
+        
+    elif cf_container.status_code == 404 and method == "GET":
+        print ("Error, requested a GET TempURL but object does not already exist")
+        sys.exit()
+
+    elif cf_container.status_code == 200 and method == "GET":
+        print ("Found existing object URL for GET TempURL, creating...")
+        
 
     return object_url
 
-def make_temp_url(duration_in_seconds, object_url, temp_url_key, cf_object, auth_token):
-    method = 'PUT'
+def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object, auth_token):
+    #tempURL requires the method in uppercase 
     expires = int(time() + duration_in_seconds)
+    method = method.upper()
     base_url, object_path = object_url.split('/v1/')
     object_path = '/v1/' + object_path
     #  print object_url
@@ -194,30 +188,34 @@ def make_temp_url(duration_in_seconds, object_url, temp_url_key, cf_object, auth
     snet_temp_url = protocol + "//snet-" + url
     print ("Your new tempURL is %s" % temp_url)
     print ("Your tempURL expires at %s localtime" % humandate) 
-    print ("example commands:")
-    print ("#curl -vX PUT \"%s\" --data-binary @%s" % (temp_url, cf_object))
-    print ("#curl -vX PUT \"%s\" --data-binary @%s" % (snet_temp_url, cf_object))
+    if method == "PUT":
+        print ("example upload commands:")
+        print ("#curl -vX %s \"%s\" --data-binary @%s" % (method, temp_url, cf_object))
+        print ("#curl -vX $s \"%s\" --data-binary @%s" % (snet_temp_url, cf_object))
+    if method == "GET": 
+        print ("example download commands:")
+        print ("#curl -vX %s \"%s\" -o %s" % (method, temp_url, cf_object))
+        print ("#curl -vX $s \"%s\" -o %s" % (snet_temp_url, cf_object))
     print ("Remember, curl tries to put the entire file into memory before copying!")
 
 
 @plac.annotations(
-#    method=plac.Annotation("HTTP verb get, put, or both"),
+    method=plac.Annotation("HTTP method : GET or PUT"),
     duration=plac.Annotation("Time to live for TempURL. Use M for Minutes, H for hours and D for days"),
     region=plac.Annotation("Rackspace datacenter"),
-    container=plac.Annotation("name of Cloud Files container to create. Must not already exist."),
+    container=plac.Annotation("name of Cloud Files container to use."),
     cf_object=plac.Annotation("name of Cloud Files object that will be uploaded via the tempURL")
 )
 
-def main(duration, region, container, cf_object):
+def main(method, duration, region, container, cf_object):
     duration, unit = parse_units(duration)
     duration_in_seconds = calculate_ttl(duration, unit)
-    print (duration_in_seconds)
     username,password = getset_keyring_credentials()
     auth_token = get_auth_token(username,password)
     cf_endpoint, cf_username = find_endpoint_and_user(auth_token, region)
     temp_url_key = get_temp_url_key(cf_endpoint, cf_username, auth_token)
-    object_url = check_and_make_container(cf_endpoint, container, cf_object, auth_token)
-    make_temp_url(duration_in_seconds, object_url, temp_url_key, cf_object, auth_token)
+    object_url = check_and_make_container(method, cf_endpoint, container, cf_object, auth_token)
+    make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object, auth_token)
 
 
 if __name__ == '__main__':
