@@ -144,8 +144,8 @@ def check_and_make_container(method, cf_endpoint, container, cf_object, auth_tok
     container_url = cf_endpoint + "/" + container
     object_url = container_url + "/" + cf_object
     method = method.upper()
+    
     #Sanity check for method
-    validated_unit = re.match(r"GET|PUT", method)
     
     if method == "GET" or method == "PUT":
 
@@ -175,7 +175,7 @@ def check_and_make_container(method, cf_endpoint, container, cf_object, auth_tok
         sys.exit()
     return object_url
 
-def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object, auth_token):
+def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object):
     #tempURL requires the method in uppercase 
     expires = int(time() + duration_in_seconds)
     method = method.upper()
@@ -195,11 +195,11 @@ def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_obje
     if method == "PUT":
         print ("example upload commands:")
         print ("#curl -vX %s \"%s\" --data-binary @%s" % (method, temp_url, cf_object))
-        print ("#curl -vX $s \"%s\" --data-binary @%s" % (snet_temp_url, cf_object))
+        print ("#curl -vX %s \"%s\" --data-binary @%s" % (method, snet_temp_url, cf_object))
     if method == "GET": 
         print ("example download commands:")
         print ("#curl -vX %s \"%s\" -o %s" % (method, temp_url, cf_object))
-        print ("#curl -vX $s \"%s\" -o %s" % (snet_temp_url, cf_object))
+        print ("#curl -vX %s \"%s\" -o %s" % (method, snet_temp_url, cf_object))
     print ("Remember, curl tries to put the entire file into memory before copying!")
 
 
@@ -219,7 +219,7 @@ def main(method, duration, region, container, cf_object):
     cf_endpoint, cf_username = find_endpoint_and_user(auth_token, region)
     temp_url_key = get_temp_url_key(cf_endpoint, cf_username, auth_token)
     object_url = check_and_make_container(method, cf_endpoint, container, cf_object, auth_token)
-    make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object, auth_token)
+    make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object)
 
 
 if __name__ == '__main__':

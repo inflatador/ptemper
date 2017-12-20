@@ -45,7 +45,7 @@ example commands:
 
 curl -vX PUT "https://storage101.syd2.clouddrive.com/v1/MossoCloudFS_c59fd903-9564-4b31-88d6-0f1fa7f92eb3/my_container/my_object.gz?temp_url_sig=492d33ed3599ee5d2ad536d32550cbd281a8360d&temp_url_expires=1504914091" --data-binary @my_object.gz
 
-curl -X PUT "https://snet-storage101.syd2.clouddrive.com/v1/MossoCloudFS_c59fd903-9564-4b31-88d6-0f1fa7f92eb3/my_container/my_object.gz?temp_url_sig=492d33ed3599ee5d2ad536d32550cbd281a8360d&temp_url_expires=1504914091" --data-binary @my_object.gz
+curl -vX PUT "https://snet-storage101.syd2.clouddrive.com/v1/MossoCloudFS_c59fd903-9564-4b31-88d6-0f1fa7f92eb3/my_container/my_object.gz?temp_url_sig=492d33ed3599ee5d2ad536d32550cbd281a8360d&temp_url_expires=1504914091" --data-binary @my_object.gz
 
 Remember, curl tries to put the entire file into memory before copying! Don't oom!
 ```
