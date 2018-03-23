@@ -150,18 +150,31 @@ def check_and_make_container(method, cf_endpoint, container, cf_object, auth_tok
     if method == "GET" or method == "PUT":
 
         cf_container = requests.head(url=container_url, headers=headers)
-
-        if cf_container.status_code == 404 and method == "PUT":
-            print ("Container %s does not already exist. Creating..." % container)
-            cf_container_put = requests.put(url=container_url, headers=headers)
-            # Create a 0-byte object for the file. This will be overwritten by the later PUT
-            # command.
-            cf_object_put = requests.put(url=object_url, headers=headers)
-
-        elif cf_container.status_code != 404 and method == "PUT":
-            print ("Error! container %s already exists, ptemper won't create a PUT URL." % container)
-            sys.exit()
         
+        if cf_container.status_code == 404 and method == "PUT":
+
+            print ("Container %s does not already exist. Creating..." % container)
+            
+            cf_container_put = requests.put(url=container_url, headers=headers)
+        # Create a 0-byte object for the file. This will be overwritten by the later PUT
+        # command. Note that this will wipe out any existing object.
+        #FIXME: warning if object already exists.
+        
+        if method == "PUT":
+        
+            cf_obj_check = requests.head(url=object_url, headers=headers)
+
+            if cf_obj_check == 404:       
+            
+                print ("Creating 0-byte object at %s " % object_url)
+        
+                cf_object_put = requests.put(url=object_url, headers=headers)
+                
+            else:
+                    print ("Object already exists, ptemper will not overwrite it. Exiting")
+                    
+                    sys.exit()
+                            
         elif cf_container.status_code == 404 and method == "GET":
             print ("Error, requested a GET TempURL but object does not already exist")
             sys.exit()
@@ -183,6 +196,7 @@ def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_obje
     object_path = '/v1/' + object_path
     #  print object_url
     hmac_body = '%s\n%s\n%s' % (method, expires, object_path)
+    print hmac_body
     temp_url_sig = hmac.new(temp_url_key, hmac_body, sha256).hexdigest()
     s = '{object_url}?temp_url_sig={temp_url_sig}&temp_url_expires={expires}'
     temp_url = s.format(object_url=object_url, temp_url_sig=temp_url_sig, expires=expires)
