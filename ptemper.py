@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # ptemper, a script that creates Rackspace Cloud Files TempURLs
-# version: 0.0.4a
-# Copyright 2017 Brian King
+# version: 0.0.6a
+# Copyright 2018 Brian King
 # License: Apache
 
 import argparse
