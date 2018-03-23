@@ -164,7 +164,7 @@ def check_and_make_container(method, cf_endpoint, container, cf_object, auth_tok
         
             cf_obj_check = requests.head(url=object_url, headers=headers)
 
-            if cf_obj_check == 404:       
+            if cf_obj_check.status_code == 404:       
             
                 print ("Creating 0-byte object at %s " % object_url)
         
