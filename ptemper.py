@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # ptemper, a script that creates Rackspace Cloud Files TempURLs
 # version: 0.0.6a
 # Copyright 2018 Brian King
@@ -34,16 +34,16 @@ def parse_units(duration):
         sys.exit()
 
 def calculate_ttl(duration,unit):
-    if unit == "M": 
+    if unit == "M":
         time_multiplier = "1"
     elif unit == "H":
         time_multiplier = "60"
     elif unit == "D":
         time_multiplier = "1440"
-    
+
     time_multiplier=int(time_multiplier)
     duration=int(duration)
-    
+
     duration_in_seconds = duration * time_multiplier * 60
     expires = int(time() + duration_in_seconds)
     return duration_in_seconds
@@ -56,7 +56,7 @@ def getset_keyring_credentials(username=None, password=None):
             username = raw_input("Enter Rackspace Username: ")
             keyring.set_password("raxcloud", 'username' , username )
             print ("Username value saved in keychain as raxcloud username.")
-        elif creds == "username":        
+        elif creds == "username":
             username = input("Enter Rackspace Username: ")
             keyring.set_password("raxcloud", 'username' , username )
             print ("Username value saved in keychain as raxcloud username.")
@@ -93,12 +93,12 @@ def get_auth_token(username,password):
     except requests.ConnectionError as e:
         print("Connection Error: Check your interwebs!")
         sys.exit()
-        
-    
+
+
     if r.status_code != 200:
         r = requests.post(url, headers=headers, json=payload2)
         if r.status_code != 200:
-            print ("Error! API responds with %d" % r.status_code) 
+            print ("Error! API responds with %d" % r.status_code)
             print("Rerun the script and you will be prompted to re-enter username/password.")
             wipe_keyring_credentials(username, password)
             sys.exit()
@@ -112,7 +112,7 @@ def get_auth_token(username,password):
     #assign token and account variables with info from json response.
     auth_token = data["access"]["token"]["id"]
     return auth_token
-    
+
 def find_endpoint_and_user(auth_token, region):
     #region is always uppercase in the API response
     region = region.upper()
@@ -140,64 +140,67 @@ def get_temp_url_key(cf_endpoint, cf_username, auth_token):
 def check_and_make_container(method, cf_endpoint, container, cf_object, auth_token):
     headers = {'content-type': 'application/json', 'Accept': 'application/json',
                'X-Auth-Token': auth_token}
-               
+
     container_url = cf_endpoint + "/" + container
     object_url = container_url + "/" + cf_object
     method = method.upper()
-    
+
     #Sanity check for method
-    
+
     if method == "GET" or method == "PUT":
 
         cf_container = requests.head(url=container_url, headers=headers)
-        
+
         if cf_container.status_code == 404 and method == "PUT":
 
             print ("Container %s does not already exist. Creating..." % container)
-            
+
             cf_container_put = requests.put(url=container_url, headers=headers)
         # Create a 0-byte object for the file. This will be overwritten by the later PUT
         # command. Note that this will wipe out any existing object.
         #FIXME: warning if object already exists.
-        
+
         if method == "PUT":
-        
+
             cf_obj_check = requests.head(url=object_url, headers=headers)
 
-            if cf_obj_check.status_code == 404:       
-            
+            if cf_obj_check.status_code == 404:
+
                 print ("Creating 0-byte object at %s " % object_url)
-        
+
                 cf_object_put = requests.put(url=object_url, headers=headers)
-                
+
             else:
                     print ("Object already exists, ptemper will not overwrite it. Exiting")
-                    
-                    sys.exit()
-                            
+
+                    sys.exit(1)
+
         elif cf_container.status_code == 404 and method == "GET":
             print ("Error, requested a GET TempURL but object does not already exist")
-            sys.exit()
+            sys.exit(1)
 
         elif cf_container.status_code == 200 and method == "GET":
             print ("Found existing object URL for GET TempURL, creating...")
-    
 
-    else: 
+
+    else:
         print ("Error! Invalid method specified. Valid methods: GET, PUT.")
-        sys.exit()
+        sys.exit(1)
     return object_url
 
 def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_object):
-    #tempURL requires the method in uppercase 
+    #tempURL requires the method in uppercase
     expires = int(time() + duration_in_seconds)
     method = method.upper()
     base_url, object_path = object_url.split('/v1/')
     object_path = '/v1/' + object_path
     #  print object_url
-    hmac_body = '%s\n%s\n%s' % (method, expires, object_path)
-    print hmac_body
-    temp_url_sig = hmac.new(temp_url_key, hmac_body, sha256).hexdigest()
+    hmac_body = (f'{method}, {expires}, {object_path}')
+    print (f"Generating TempURL with the following params: {hmac_body}")
+    #Now we do the stupid byte conversion. Thanks Python3!
+    hmac_body_bytes = bytes(hmac_body, 'latin-1')
+    temp_url_key_bytes = bytes(temp_url_key , 'latin-1')
+    temp_url_sig = hmac.new(temp_url_key_bytes, hmac_body_bytes, sha256).hexdigest()
     s = '{object_url}?temp_url_sig={temp_url_sig}&temp_url_expires={expires}'
     temp_url = s.format(object_url=object_url, temp_url_sig=temp_url_sig, expires=expires)
     humandate = datetime.datetime.now() + (datetime.timedelta(seconds=duration_in_seconds))
@@ -205,12 +208,12 @@ def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_obje
     protocol, url = temp_url.split('//')
     snet_temp_url = protocol + "//snet-" + url
     print ("Your new tempURL is %s" % temp_url)
-    print ("Your tempURL expires at %s localtime" % humandate) 
+    print ("Your tempURL expires at %s localtime" % humandate)
     if method == "PUT":
         print ("example upload commands:")
         print ("#curl -vX %s \"%s\" --data-binary @%s" % (method, temp_url, cf_object))
         print ("#curl -vX %s \"%s\" --data-binary @%s" % (method, snet_temp_url, cf_object))
-    if method == "GET": 
+    if method == "GET":
         print ("example download commands:")
         print ("#curl -vX %s \"%s\" -o %s" % (method, temp_url, cf_object))
         print ("#curl -vX %s \"%s\" -o %s" % (method, snet_temp_url, cf_object))
