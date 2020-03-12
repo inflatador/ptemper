@@ -195,7 +195,7 @@ def make_temp_url(method, duration_in_seconds, object_url, temp_url_key, cf_obje
     base_url, object_path = object_url.split('/v1/')
     object_path = '/v1/' + object_path
     #  print object_url
-    hmac_body = (f'{method}, {expires}, {object_path}')
+    hmac_body = (f"{method}\n{expires}\n{object_path}")
     print (f"Generating TempURL with the following params: {hmac_body}")
     #Now we do the stupid byte conversion. Thanks Python3!
     hmac_body_bytes = bytes(hmac_body, 'latin-1')
